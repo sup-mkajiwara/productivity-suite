@@ -11,6 +11,12 @@
   },
   "skills": [
     {
+      "name": "morning-routine",
+      "path": "skills/morning-routine",
+      "displayName": "Morning Routine",
+      "description": "朝のルーティン：スケジュール・プロジェクト・メール対応を一括更新"
+    },
+    {
       "name": "gmail-todo",
       "path": "skills/gmail-todo",
       "displayName": "Gmail Todo Manager",
