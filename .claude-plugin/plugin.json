@@ -3,11 +3,11 @@
   "displayName": "Productivity Suite",
   "version": "1.0.0",
   "description": "仕事の効率を向上させるスキル集。Gmail のメール対応自動化、タスク管理、カレンダー連携など、複数のプロダクティビティツールを統合したプラグイン。",
-  "author": "supportas-inc",
+  "author": "sup-mkajiwara",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/supportas-inc/productivity-suite"
+    "url": "https://github.com/sup-mkajiwara/productivity-suite"
   },
   "skills": [
     {
