@@ -9,6 +9,26 @@
     "type": "git",
     "url": "https://github.com/sup-mkajiwara/productivity-suite"
   },
+  "skills": [
+    {
+      "name": "gmail-todo",
+      "path": "skills/gmail-todo",
+      "displayName": "Gmail Todo Manager",
+      "description": "Gmail のメール対応を自動で TODO.md に反映"
+    },
+    {
+      "name": "task-manager",
+      "path": "skills/task-manager",
+      "displayName": "Task Manager",
+      "description": "タスク管理とタイムトラッキング"
+    },
+    {
+      "name": "calendar-sync",
+      "path": "skills/calendar-sync",
+      "displayName": "Calendar Sync",
+      "description": "カレンダー統合と予定管理"
+    }
+  ],
   "keywords": [
     "productivity",
     "gmail",
