@@ -1,0 +1,16 @@
+# Configuration (user-specific)
+.claude/config/
+.claude/works/
+.claude/commands/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Node
+node_modules/
+*.log

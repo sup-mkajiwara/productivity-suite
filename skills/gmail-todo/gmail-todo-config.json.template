@@ -1,0 +1,20 @@
+{
+  "email": "your-email@example.com",
+  "search": {
+    "unread_days": 1,
+    "starred_days": 7,
+    "todo_days": 7,
+    "reply_candidate_days": 14
+  },
+  "exclude": {
+    "senders": [],
+    "subjects": [],
+    "keywords": []
+  },
+  "output": {
+    "list_file": ".claude/works/gmail-todo-list.md",
+    "exclude_file": ".claude/works/gmail-todo-exclude.md",
+    "todo_md": "TODO.md",
+    "todo_section": "メール対応（Gmail）"
+  }
+}
