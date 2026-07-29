@@ -12,46 +12,31 @@
 
 ---
 
-## セットアップ
+## クイックスタート
 
-### 前提条件
+### 1. マーケットプレイスを追加
 
-- GitHub アカウント（このプライベートリポジトリへのアクセス権限が必要）
-- SSH キーまたは GitHub CLI で認証済み
-
-### 1. プロジェクトで `.claude/settings.json` を作成
-
-プロジェクトのルートの `.claude/settings.json` に以下を追加：
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "productivity-suite": {
-      "source": {
-        "source": "github",
-        "repo": "sup-mkajiwara/productivity-suite"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "productivity-suite@sup-mkajiwara": true
-  }
-}
-```
-
-または、このリポジトリのテンプレートをコピー：
+Claude Code で以下を実行：
 
 ```bash
-cp .claude/settings.json.template /path/to/your/project/.claude/settings.json
+/plugin marketplace add sup-mkajiwara/productivity-suite
 ```
 
-### 2. Gmail Todo の設定ファイルを作成
+### 2. プラグインをインストール
+
+```bash
+/plugin install productivity-suite@sup-mkajiwara-tools
+```
+
+### 3. Gmail Todo の設定（初回のみ）
+
+設定ファイルを作成：
 
 ```bash
 cp skills/gmail-todo/gmail-todo-config.json.template .claude/config/gmail-todo-config.json
 ```
 
-メールアドレスを編集：
+`.claude/config/gmail-todo-config.json` を編集してメールアドレスを設定：
 
 ```json
 {
@@ -59,13 +44,9 @@ cp skills/gmail-todo/gmail-todo-config.json.template .claude/config/gmail-todo-c
 }
 ```
 
-### 3. Claude Code を再起動
-
-`.claude/settings.json` が自動的に読み込まれ、マーケットプレイスが登録されます。
-
 ### 4. スキルを実行
 
-```
+```bash
 /morning-routine
 /gmail-todo
 ```
@@ -135,14 +116,9 @@ Claude Code が返信案を自動生成します。
 
 ---
 
-## プライベート配布
+## ライセンス
 
-このプラグインは **GitHub のプライベートリポジトリ** で管理されています。
-
-利用するには：
-- GitHub アカウントが必要
-- 本リポジトリへのアクセス権限が必要
-- プロジェクトの `.claude/settings.json` で `extraKnownMarketplaces` を登録
+MIT License
 
 ---
 
