@@ -16,10 +16,13 @@ Gmail を確認し、対応が必要なメールを番号付きリストで出�
 ## 手順
 
 1. **対象メールを取得**（Gmail コネクタの検索ツールを使う）
+   
+   設定ファイル `gmail-todo-config.json` で指定したメールアドレスを `{user-email}` として使用：
+   
    - **未読**: `is:unread newer_than:1d in:inbox`
    - **スター付き**: `is:starred newer_than:7d in:inbox`
-   - **ToDo ラベル**: `label:todo newer_than:7d to:m.kajiwara@supportas.co.jp in:inbox`
-   - **要返信の候補**: `to:m.kajiwara@supportas.co.jp newer_than:14d in:inbox` のうち、スレッド最後の差出人が自分以外で、
+   - **ToDo ラベル**: `label:todo newer_than:7d in:inbox`
+   - **要返信の候補**: 受信トレイ内で、スレッド最後の差出人が自分以外で、
      依頼・質問・確認依頼など返信を求める内容のもの（本文/件名から Claude が判断する）
    - **重要**: 複数のスレッドがある場合は、各スレッドの**最新メッセージ日付**を確認し、
      **スレッド内で最新のメッセージが最新日付のスレッドのみ**を対象にする。
