@@ -17,13 +17,13 @@
 ### 1. マーケットプレイスを追加
 
 ```
-/plugin marketplace add supportas/productivity-suite
+/plugin marketplace add supportas-inc/productivity-suite
 ```
 
 ### 2. プラグインをインストール
 
 ```
-/plugin install gmail-todo@supportas-tools
+/plugin install gmail-todo@supportas-inc-tools
 ```
 
 ### 3. 設定ファイルを作成
