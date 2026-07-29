@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "productivity-suite": {
+      "source": {
+        "source": "github",
+        "repo": "sup-mkajiwara/productivity-suite"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "productivity-suite@sup-mkajiwara": true
+  }
+}
