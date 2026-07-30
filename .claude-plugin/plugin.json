@@ -3,43 +3,22 @@
   "displayName": "Productivity Suite",
   "version": "1.0.0",
   "description": "仕事の効率を向上させるスキル集。Gmail のメール対応自動化、タスク管理、カレンダー連携など、複数のプロダクティビティツールを統合したプラグイン。",
-  "author": "sup-mkajiwara",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/sup-mkajiwara/productivity-suite"
+  "author": {
+    "name": "sup-mkajiwara"
   },
-  "skills": [
-    {
-      "name": "morning-routine",
-      "path": "skills/morning-routine",
-      "displayName": "Morning Routine",
-      "description": "朝のルーティン：スケジュール・プロジェクト・メール対応を一括更新"
-    },
-    {
-      "name": "gmail-todo",
-      "path": "skills/gmail-todo",
-      "displayName": "Gmail Todo Manager",
-      "description": "Gmail のメール対応を自動で TODO.md に反映"
-    },
-    {
-      "name": "task-manager",
-      "path": "skills/task-manager",
-      "displayName": "Task Manager",
-      "description": "タスク管理とタイムトラッキング"
-    },
-    {
-      "name": "calendar-sync",
-      "path": "skills/calendar-sync",
-      "displayName": "Calendar Sync",
-      "description": "カレンダー統合と予定管理"
-    }
-  ],
+  "license": "MIT",
+  "repository": "https://github.com/sup-mkajiwara/productivity-suite",
   "keywords": [
     "productivity",
     "gmail",
     "todo",
     "email-management",
     "task-management"
-  ]
+  ],
+  "skills": {
+    "morning-routine": "skills/morning-routine",
+    "gmail-todo": "skills/gmail-todo",
+    "task-manager": "skills/task-manager",
+    "calendar-sync": "skills/calendar-sync"
+  }
 }
