@@ -1,6 +1,5 @@
 {
   "name": "productivity-suite",
-  "version": "1.0.0",
   "owner": {
     "name": "sup-mkajiwara"
   },
@@ -9,6 +8,7 @@
       "name": "productivity-suite",
       "displayName": "Productivity Suite",
       "description": "仕事の効率を向上させるスキル集。Gmail メール対応自動化、タスク管理、カレンダー連携など複数のツールを統合。",
+      "version": "1.0.0",
       "source": {
         "source": "github",
         "repo": "sup-mkajiwara/productivity-suite"
