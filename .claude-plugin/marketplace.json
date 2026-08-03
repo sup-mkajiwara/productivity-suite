@@ -1,6 +1,6 @@
 {
   "name": "productivity-suite",
-  "description": "仕事の効率化スキルを配布するマーケットプレイス。Gmail 対応自動化・タスク管理・カレンダー連携など。",
+  "description": "仕事の効率化スキルを配布するマーケットプレイス。Gmail 対応自動化・朝のルーティン・ボイスメモの文字起こしなど。",
   "owner": {
     "name": "sup-mkajiwara"
   },
@@ -8,8 +8,8 @@
     {
       "name": "productivity-suite",
       "displayName": "Productivity Suite",
-      "description": "仕事の効率を向上させるスキル集。Gmail メール対応自動化、タスク管理、カレンダー連携など複数のツールを統合。",
-      "version": "1.0.0",
+      "description": "仕事の効率を向上させるスキル集。Gmail メール対応自動化、朝のルーティン、ボイスメモのローカル文字起こしからの会議メモ自動作成。",
+      "version": "1.1.0",
       "source": "./"
     }
   ]

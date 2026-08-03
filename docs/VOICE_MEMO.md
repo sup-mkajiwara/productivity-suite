@@ -1,0 +1,295 @@
+# ボイスメモ → 会議メモ 自動化ガイド
+
+Mac のボイスメモで録音した音声を、ローカルで文字起こしして
+要約付きの会議メモ Markdown を自動生成する仕組みです。
+
+```
+ボイスメモ で録音
+      ↓  （書き出し or 自動検知）
+監視フォルダ
+      ↓  launchd が変更を検知
+whisper.cpp でローカル文字起こし
+      ↓
+Claude Code が要約 → 会議メモ Markdown
+      ↓
+出力フォルダ（既定: Obsidian Vault/会議メモ）
+```
+
+音声・テキストは外部に送信されません（要約のみ Claude Code が処理します）。
+
+---
+
+## セットアップ
+
+### 1. 初回セットアップスクリプトを実行
+
+```bash
+skills/voice-memo-notes/scripts/install.sh
+```
+
+以下を自動で行います。
+
+| 内容 | 補足 |
+|------|------|
+| `whisper-cpp` の導入 | Homebrew 経由 |
+| `ffmpeg` の導入 | m4a → 16kHz WAV 変換に必要 |
+| モデルのダウンロード | `ggml-large-v3-turbo.bin` 約 1.6GB → `~/.cache/whisper.cpp/` |
+| 設定ファイル作成 | `~/.claude/config/voice-memo-config.json` |
+| フォルダ作成 | 監視フォルダ・出力フォルダ・アーカイブフォルダ |
+| launchd 登録 | 監視フォルダの変更で自動起動（実行するか確認されます） |
+
+Homebrew が未導入の場合は先に https://brew.sh を参照してください。
+
+### 2. 自動実行用トークンを設定（自動化する場合のみ）
+
+launchd（非対話実行）では Keychain のログイン情報が使えないため、長期トークンが必要です。
+
+```bash
+claude setup-token
+# 表示されたトークンを保存
+echo '<表示されたトークン>' > ~/.claude/voice-memo-token
+chmod 600 ~/.claude/voice-memo-token
+```
+
+`~/.claude/morning-token` が既にある場合はそれが自動的に流用されます。
+
+### 3. 動作確認
+
+適当な音声を監視フォルダに置いて、手動実行してみます。
+
+```bash
+~/.claude/scripts/voice-memo-watch.sh
+tail -f ~/.claude/logs/voice-memo-notes.log
+```
+
+---
+
+## 使い方
+
+### パターンA: 書き出しフォルダ運用（既定・推奨）
+
+1. ボイスメモで録音する
+2. 録音を選び **共有 → ファイルに保存** で監視フォルダ（既定 `~/Documents/VoiceMemoInbox`）へ書き出す
+3. 数十秒〜数分後、出力フォルダに会議メモ `.md` が作成される
+4. 処理済みの音声は `_done` フォルダへ移動される
+
+「文字起こししたい録音だけ」を選べるのが利点です。権限設定も不要です。
+
+### パターンB: ボイスメモ本体を直接監視
+
+書き出し操作なしで全録音を自動処理します。設定を変更してください。
+
+```json
+{
+  "source": {
+    "mode": "voicememos"
+  }
+}
+```
+
+**追加で必要な設定:**
+
+- システム設定 → プライバシーとセキュリティ → **フルディスクアクセス** で
+  ターミナル（および Claude Code）を許可
+- 許可後、`install.sh` を再実行して launchd を登録し直す
+
+> ⚠️ ボイスメモの内部フォルダは Apple の仕様変更で構造が変わる可能性があります。
+> 動かなくなった場合は `source.voicememos_dir` を実際のパスに合わせてください。
+> このモードでは音声のアーカイブ移動は行いません（本体を変更しないため）。
+
+### 手動実行（Claude Code から）
+
+```
+/voice-memo-notes                      # 未処理の録音をすべて処理
+/voice-memo-notes ~/Downloads/rec.m4a  # 特定ファイルを処理
+/voice-memo-notes ~/Downloads          # 特定フォルダを処理
+```
+
+---
+
+## 設定リファレンス
+
+`~/.claude/config/voice-memo-config.json`
+
+```json
+{
+  "source": {
+    "mode": "export",
+    "watch_dir": "~/Documents/VoiceMemoInbox",
+    "voicememos_dir": "~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings",
+    "extensions": ["m4a", "mp3", "wav", "mp4"],
+    "min_seconds": 30
+  },
+  "processed": {
+    "archive_dir": "~/Documents/VoiceMemoInbox/_done",
+    "state_file": "~/.claude/state/voice-memo-processed.txt"
+  },
+  "whisper": {
+    "bin": "whisper-cli",
+    "model": "~/.cache/whisper.cpp/ggml-large-v3-turbo.bin",
+    "language": "ja",
+    "threads": 8,
+    "timestamps": false,
+    "work_dir": "~/.claude/state/voice-memo-work"
+  },
+  "output": {
+    "dir": "~/Documents/Obsidian Vault/会議メモ",
+    "filename_format": "{date}_{title}",
+    "include_full_text": true,
+    "tags": ["会議メモ"]
+  }
+}
+```
+
+| 項目 | 既定値 | 説明 |
+|------|--------|------|
+| `source.mode` | `export` | `export` = 書き出しフォルダ監視 / `voicememos` = 本体直接監視 |
+| `source.watch_dir` | `~/Documents/VoiceMemoInbox` | 監視フォルダ。**変更したら `install.sh` を再実行**（launchd の監視先が変わるため） |
+| `source.extensions` | m4a, mp3, wav, mp4 | 対象とする拡張子 |
+| `source.min_seconds` | 30 | これ未満の短い録音は無視（メモ的な独り言を除外） |
+| `processed.archive_dir` | `<watch_dir>/_done` | 処理済み音声の移動先。空文字にすると移動しない |
+| `processed.state_file` | `~/.claude/state/voice-memo-processed.txt` | 処理済み記録。消すと全件が再処理対象になる |
+| `whisper.model` | `ggml-large-v3-turbo.bin` | 精度優先。速度優先なら `ggml-medium.bin` や `ggml-small.bin` |
+| `whisper.language` | `ja` | 文字起こし言語 |
+| `whisper.threads` | 8 | 使用スレッド数。Mac のコア数に合わせる |
+| `whisper.timestamps` | `false` | `true` にすると `.srt`（時刻付き字幕）も併せて生成 |
+| `output.dir` | `~/Documents/Obsidian Vault/会議メモ` | **会議メモの出力先** |
+| `output.filename_format` | `{date}_{title}` | `{date}` `{time}` `{title}` が使える |
+| `output.include_full_text` | `true` | `false` にすると要約のみ（全文を含めない） |
+
+### モデルを軽いものに変える
+
+large-v3-turbo は精度が高い一方、1時間の録音で数分かかります。速度優先なら:
+
+```bash
+curl -L -o ~/.cache/whisper.cpp/ggml-medium.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin
+```
+
+設定の `whisper.model` を `~/.cache/whisper.cpp/ggml-medium.bin` に変更します。
+
+---
+
+## 生成される会議メモの例
+
+```markdown
+---
+date: 2026-08-03
+time: 10:30
+duration: 45分
+source: 20260803 103000.m4a
+tags: [会議メモ]
+---
+
+# 2026-08-03 週次定例
+
+## 概要
+
+新機能のリリース時期と検証範囲について確認した。
+リリースは翌週後半で合意し、検証の担当分担を決めた。
+
+## 議題・論点
+
+- **リリース時期** — 検証期間を確保するため前倒しは見送り
+- **検証範囲** — 既存機能の回帰も含めるかで議論、含める方針に
+
+## 決定事項
+
+- リリースは翌週後半に実施
+- 回帰テストを検証範囲に含める
+
+## ToDo
+
+- [ ] 検証項目表の作成（担当: 山田 / 期限: 金曜）
+- [ ] リリース手順の確認
+
+## 保留・次回確認
+
+- 監視体制の担当（要確認）
+
+---
+
+## 文字起こし全文
+
+...
+```
+
+---
+
+## トラブルシューティング
+
+まずログを確認してください。
+
+```bash
+tail -50 ~/.claude/logs/voice-memo-notes.log
+```
+
+### 会議メモが作成されない
+
+```bash
+# launchd が登録されているか
+launchctl list | grep voice-memo
+
+# 手動実行して切り分ける
+~/.claude/scripts/voice-memo-watch.sh
+```
+
+- 「コマンドが見つかりません」→ `install.sh` を実行
+- 「whisper モデルが見つかりません」→ `install.sh` を実行
+- 「短すぎるためスキップ」→ `source.min_seconds` を下げる
+- ログに認証エラー → 上記「自動実行用トークンを設定」を実施
+
+### 監視フォルダを変えたのに反応しない
+
+launchd の監視先は plist に埋め込まれているため、登録し直しが必要です。
+
+```bash
+launchctl bootout gui/$(id -u)/com.user.voice-memo-notes
+rm ~/Library/LaunchAgents/com.user.voice-memo-notes.plist
+skills/voice-memo-notes/scripts/install.sh
+```
+
+### 同じ音声が何度も処理される / されない
+
+処理済み記録は `~/.claude/state/voice-memo-processed.txt` です。
+
+```bash
+# 全件を再処理したい
+rm ~/.claude/state/voice-memo-processed.txt
+
+# 特定の1件だけ再処理したい（処理済み記録を無視して実行される）
+~/.claude/scripts/voice-memo-transcribe.sh ~/path/to/audio.m4a
+```
+
+`min_seconds` で「短すぎる」と判定された録音も処理済みとして記録されます。
+設定を下げてから再処理したい場合は、上記のとおり記録を消すか、ファイルを直接指定してください。
+
+### プラグインを更新したら動かなくなった
+
+`~/.claude/scripts/` のリンクが古いバージョンのフォルダを指しています。
+`install.sh` を再実行するとリンクが張り直されます。
+
+```bash
+skills/voice-memo-notes/scripts/install.sh
+```
+
+### `Operation not permitted` と出る（voicememos モード）
+
+フルディスクアクセスが未許可です。「パターンB」の手順を確認してください。
+許可が難しい場合は `source.mode` を `export` に戻してください。
+
+### 文字起こしが遅い
+
+- `whisper.threads` を Mac のコア数（`sysctl -n hw.perflevel0.physicalcpu`）に合わせる
+- より軽いモデルに変更する（上記「モデルを軽いものに変える」）
+
+---
+
+## 自動化を止める
+
+```bash
+launchctl bootout gui/$(id -u)/com.user.voice-memo-notes
+rm ~/Library/LaunchAgents/com.user.voice-memo-notes.plist
+```
+
+Skill としての手動実行（`/voice-memo-notes`）は引き続き使えます。

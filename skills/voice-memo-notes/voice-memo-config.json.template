@@ -1,0 +1,27 @@
+{
+  "source": {
+    "mode": "export",
+    "watch_dir": "~/Documents/VoiceMemoInbox",
+    "voicememos_dir": "~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings",
+    "extensions": ["m4a", "mp3", "wav", "mp4"],
+    "min_seconds": 30
+  },
+  "processed": {
+    "archive_dir": "~/Documents/VoiceMemoInbox/_done",
+    "state_file": "~/.claude/state/voice-memo-processed.txt"
+  },
+  "whisper": {
+    "bin": "whisper-cli",
+    "model": "~/.cache/whisper.cpp/ggml-large-v3-turbo.bin",
+    "language": "ja",
+    "threads": 8,
+    "timestamps": false,
+    "work_dir": "~/.claude/state/voice-memo-work"
+  },
+  "output": {
+    "dir": "~/Documents/Obsidian Vault/会議メモ",
+    "filename_format": "{date}_{title}",
+    "include_full_text": true,
+    "tags": ["会議メモ"]
+  }
+}
