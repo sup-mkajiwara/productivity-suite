@@ -4,6 +4,8 @@
 
 **現在のスキル：**
 - 📧 **Gmail Todo Manager** — Gmail のメール対応を自動で TODO.md に反映
+- 🌅 **Morning Routine** — 今日の予定と進行中プロジェクトを TODO.md に書き出す
+- 🎙️ **Voice Memo Notes** — ボイスメモの録音をローカル文字起こしし、要約付きの会議メモを自動作成
 
 **今後追加予定：**
 - ⏰ Task Manager — タスク管理とタイムトラッキング
@@ -51,6 +53,31 @@ cp skills/gmail-todo/gmail-todo-config.json.template .claude/config/gmail-todo-c
 /gmail-todo
 ```
 
+### 5. ボイスメモ文字起こしの設定（使う場合のみ）
+
+初回だけセットアップスクリプトを実行します（whisper.cpp と ffmpeg を導入します）。
+
+```bash
+skills/voice-memo-notes/scripts/install.sh
+```
+
+以降はボイスメモを監視フォルダに書き出すだけで会議メモが自動作成されます。
+手動実行は `/voice-memo-notes`。詳細は [ボイスメモ自動化ガイド](docs/VOICE_MEMO.md) を参照してください。
+
+---
+
+## 使い方（Voice Memo Notes）
+
+1. Mac のボイスメモで会議を録音する
+2. 録音を選んで **共有 → ファイルに保存** で監視フォルダ（既定 `~/Documents/VoiceMemoInbox`）へ書き出す
+3. 自動で文字起こしされ、`Obsidian Vault/会議メモ` に Markdown が作成される
+
+作成される会議メモには **概要・議題・決定事項・ToDo・文字起こし全文** が含まれます。
+音声は外部に送信せず、すべてローカルで文字起こしします。
+
+取り込み元フォルダ・出力先フォルダは
+`~/.claude/config/voice-memo-config.json` で自由に変更できます。
+
 ---
 
 ## 使い方（Gmail Todo Manager）
@@ -92,6 +119,7 @@ Claude Code が返信案を自動生成します。
 
 - **[セットアップガイド](docs/SETUP.md)** — インストール手順とトラブルシューティング
 - **[カスタマイズガイド](docs/CUSTOMIZE.md)** — メールアドレス、検索期間、除外ルール等の設定方法
+- **[ボイスメモ自動化ガイド](docs/VOICE_MEMO.md)** — 文字起こしの設定、フォルダ変更、トラブルシューティング
 
 ---
 

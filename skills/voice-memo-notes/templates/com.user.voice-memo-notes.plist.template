@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>__LABEL__</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__SCRIPT_PATH__</string>
+    </array>
+
+    <!-- 監視フォルダに変更があると起動する（音声を置いた/書き出した瞬間） -->
+    <key>WatchPaths</key>
+    <array>
+        <string>__WATCH_DIR__</string>
+    </array>
+
+    <!-- 短時間の連続発火を抑制する（秒） -->
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- launchd 経由の低いファイルディスクリプタ上限(256)対策 -->
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>65536</integer>
+    </dict>
+
+    <!-- 文字起こしは CPU を長く使うため、他の作業を妨げないよう優先度を下げる -->
+    <key>Nice</key>
+    <integer>5</integer>
+    <key>LowPriorityIO</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>__LOG_PATH__</string>
+    <key>StandardErrorPath</key>
+    <string>__LOG_PATH__</string>
+</dict>
+</plist>

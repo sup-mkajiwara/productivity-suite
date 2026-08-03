@@ -1,8 +1,8 @@
 {
   "name": "productivity-suite",
   "displayName": "Productivity Suite",
-  "version": "1.0.0",
-  "description": "仕事の効率を向上させるスキル集。Gmail のメール対応自動化、タスク管理、カレンダー連携など、複数のプロダクティビティツールを統合したプラグイン。",
+  "version": "1.1.0",
+  "description": "仕事の効率を向上させるスキル集。Gmail のメール対応自動化、朝のルーティン、ボイスメモのローカル文字起こしからの会議メモ自動作成など、複数のプロダクティビティツールを統合したプラグイン。",
   "author": {
     "name": "sup-mkajiwara"
   },
@@ -13,6 +13,9 @@
     "gmail",
     "todo",
     "email-management",
-    "task-management"
+    "task-management",
+    "voice-memo",
+    "transcription",
+    "meeting-notes"
   ]
 }
