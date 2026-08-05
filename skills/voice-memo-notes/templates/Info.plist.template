@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.user.voice-memo-transcriber</string>
+    <key>CFBundleName</key>
+    <string>VoiceMemoTranscriber</string>
+    <key>CFBundleDisplayName</key>
+    <string>ボイスメモ文字起こし</string>
+    <key>CFBundleExecutable</key>
+    <string>AppleTranscriber</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <!-- Dock やアプリスイッチャーに出さない（裏で文字起こしするだけのため） -->
+    <key>LSBackgroundOnly</key>
+    <true/>
+
+    <!-- この説明文が初回の許可ダイアログに表示される。
+         これが無いと音声認識の要求時にプロセスが強制終了する -->
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>ボイスメモの録音を文字起こしして会議メモを作成するために、音声認識を使用します。認識はすべてこの Mac の中で行われ、音声は外部に送信されません。</string>
+</dict>
+</plist>

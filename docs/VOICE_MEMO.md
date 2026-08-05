@@ -8,20 +8,37 @@ Mac のボイスメモで録音した音声を、ローカルで文字起こし�
       ↓  （書き出し or 自動検知）
 監視フォルダ
       ↓  launchd が変更を検知
-whisper.cpp でローカル文字起こし
+ローカルで文字起こし（macOS 標準の音声認識）
       ↓
 Claude Code が要約 → 会議メモ Markdown
       ↓
 出力フォルダ（既定: Obsidian Vault/会議メモ）
 ```
 
-音声・テキストは外部に送信されません（要約のみ Claude Code が処理します）。
+音声は外部に送信されません（要約のみ Claude Code が処理します）。
+
+---
+
+## 文字起こしエンジン
+
+既定は **macOS 標準の音声認識**です。追加のダウンロードは一切ありません。
+
+| | `apple`（既定） | `whisper` |
+|---|---|---|
+| 追加ダウンロード | **なし** | モデル 75MB〜1.6GB |
+| 追加インストール | なし（ビルドに Xcode CLT のみ） | `brew install whisper-cpp ffmpeg` |
+| 速度（実測） | **4.5分の音声を約40秒** | モデル次第（large は数倍遅い） |
+| 精度 | 実用的。専門用語・固有名詞は誤りやすい | large-v3-turbo は高精度 |
+| 初回の許可操作 | **必要**（音声認識の許可ダイアログ） | 不要 |
+| 音声の外部送信 | なし（オンデバイス認識を強制） | なし |
+
+精度を上げたい場合は設定の `engine` を `whisper` に変えてください（後述）。
 
 ---
 
 ## セットアップ
 
-### 1. 初回セットアップスクリプトを実行
+### 1. セットアップスクリプトを実行
 
 ```bash
 skills/voice-memo-notes/scripts/install.sh
@@ -31,16 +48,38 @@ skills/voice-memo-notes/scripts/install.sh
 
 | 内容 | 補足 |
 |------|------|
-| `whisper-cpp` の導入 | Homebrew 経由 |
-| `ffmpeg` の導入 | m4a → 16kHz WAV 変換に必要 |
-| モデルのダウンロード | `ggml-large-v3-turbo.bin` 約 1.6GB → `~/.cache/whisper.cpp/` |
 | 設定ファイル作成 | `~/.claude/config/voice-memo-config.json` |
+| 文字起こしツールのビルド | `~/.claude/state/VoiceMemoTranscriber.app`（`apple` エンジンのみ） |
 | フォルダ作成 | 監視フォルダ・出力フォルダ・アーカイブフォルダ |
+| 音声認識の許可 | 許可ダイアログを表示（`apple` エンジンのみ） |
 | launchd 登録 | 監視フォルダの変更で自動起動（実行するか確認されます） |
 
-Homebrew が未導入の場合は先に https://brew.sh を参照してください。
+`apple` エンジンには **Xcode Command Line Tools** が必要です（ビルド時のみ）。
 
-### 2. 自動実行用トークンを設定（自動化する場合のみ）
+```bash
+xcode-select --install   # 未導入の場合
+```
+
+確認を省いて一気に進めたい場合（Claude Code から実行する場合など）:
+
+```bash
+VOICE_MEMO_ASSUME_YES=1 skills/voice-memo-notes/scripts/install.sh
+```
+
+### 2. 音声認識の許可
+
+`apple` エンジンでは、初回に macOS の許可ダイアログが表示されるので **「OK」** を選びます。
+
+許可は `~/.claude/state/VoiceMemoTranscriber.app` に紐づいて記憶されるため、
+一度許可すれば以降は自動で文字起こしできます。
+
+あとから設定を変えたい場合は
+**システム設定 → プライバシーとセキュリティ → 音声認識** を開いてください。
+
+> ⚠️ ツールを**再ビルドすると署名が変わるため、許可を再度求められます**。
+> プラグイン更新後に文字起こしが失敗する場合は、`install.sh` を再実行して許可し直してください。
+
+### 3. 自動実行用トークンを設定（自動化する場合のみ）
 
 launchd（非対話実行）では Keychain のログイン情報が使えないため、長期トークンが必要です。
 
@@ -53,7 +92,7 @@ chmod 600 ~/.claude/voice-memo-token
 
 `~/.claude/morning-token` が既にある場合はそれが自動的に流用されます。
 
-### 3. 動作確認
+### 4. 動作確認
 
 適当な音声を監視フォルダに置いて、手動実行してみます。
 
@@ -113,6 +152,7 @@ tail -f ~/.claude/logs/voice-memo-notes.log
 
 ```json
 {
+  "engine": "apple",
   "source": {
     "mode": "export",
     "watch_dir": "~/Documents/VoiceMemoInbox",
@@ -124,13 +164,18 @@ tail -f ~/.claude/logs/voice-memo-notes.log
     "archive_dir": "~/Documents/VoiceMemoInbox/_done",
     "state_file": "~/.claude/state/voice-memo-processed.txt"
   },
+  "work_dir": "~/.claude/state/voice-memo-work",
+  "apple": {
+    "app_path": "~/.claude/state/VoiceMemoTranscriber.app",
+    "locale": "ja-JP",
+    "chunk_seconds": 45
+  },
   "whisper": {
     "bin": "whisper-cli",
     "model": "~/.cache/whisper.cpp/ggml-large-v3-turbo.bin",
     "language": "ja",
     "threads": 8,
-    "timestamps": false,
-    "work_dir": "~/.claude/state/voice-memo-work"
+    "timestamps": false
   },
   "output": {
     "dir": "~/Documents/Obsidian Vault/会議メモ",
@@ -143,30 +188,49 @@ tail -f ~/.claude/logs/voice-memo-notes.log
 
 | 項目 | 既定値 | 説明 |
 |------|--------|------|
+| `engine` | `apple` | `apple` = macOS 標準 / `whisper` = whisper.cpp |
 | `source.mode` | `export` | `export` = 書き出しフォルダ監視 / `voicememos` = 本体直接監視 |
 | `source.watch_dir` | `~/Documents/VoiceMemoInbox` | 監視フォルダ。**変更したら `install.sh` を再実行**（launchd の監視先が変わるため） |
 | `source.extensions` | m4a, mp3, wav, mp4 | 対象とする拡張子 |
 | `source.min_seconds` | 30 | これ未満の短い録音は無視（メモ的な独り言を除外） |
 | `processed.archive_dir` | `<watch_dir>/_done` | 処理済み音声の移動先。空文字にすると移動しない |
 | `processed.state_file` | `~/.claude/state/voice-memo-processed.txt` | 処理済み記録。消すと全件が再処理対象になる |
-| `whisper.model` | `ggml-large-v3-turbo.bin` | 精度優先。速度優先なら `ggml-medium.bin` や `ggml-small.bin` |
-| `whisper.language` | `ja` | 文字起こし言語 |
-| `whisper.threads` | 8 | 使用スレッド数。Mac のコア数に合わせる |
-| `whisper.timestamps` | `false` | `true` にすると `.srt`（時刻付き字幕）も併せて生成 |
+| `work_dir` | `~/.claude/state/voice-memo-work` | 文字起こしテキストの置き場所 |
+| `apple.locale` | `ja-JP` | 認識する言語。オンデバイス非対応の言語は拒否されます |
+| `apple.chunk_seconds` | 45 | 音声を分割する長さ（後述） |
 | `output.dir` | `~/Documents/Obsidian Vault/会議メモ` | **会議メモの出力先** |
 | `output.filename_format` | `{date}_{title}` | `{date}` `{time}` `{title}` が使える |
 | `output.include_full_text` | `true` | `false` にすると要約のみ（全文を含めない） |
 
-### モデルを軽いものに変える
+### なぜ音声を分割するのか（`apple.chunk_seconds`）
 
-large-v3-turbo は精度が高い一方、1時間の録音で数分かかります。速度優先なら:
+macOS の音声認識に長い音声をそのまま渡すと、**末尾の一部しか返りません**
+（4.5分の音声で最後の30秒程度のみ、という挙動を実測で確認しています）。
 
-```bash
-curl -L -o ~/.cache/whisper.cpp/ggml-medium.bin \
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin
+そのため 45 秒ごとに分割し、順に認識して連結しています。分割は AVFoundation で
+行うため ffmpeg は不要です。既定値のままで問題ありませんが、区切りで単語が
+切れるのが気になる場合は 30〜60 秒の範囲で調整してください。
+
+### 精度を上げたい場合（whisper に切り替え）
+
+```json
+{
+  "engine": "whisper",
+  "whisper": {
+    "model": "~/.cache/whisper.cpp/ggml-large-v3-turbo.bin"
+  }
+}
 ```
 
-設定の `whisper.model` を `~/.cache/whisper.cpp/ggml-medium.bin` に変更します。
+設定を変えてから `install.sh` を再実行すると、`whisper-cpp` / `ffmpeg` の導入と
+モデルのダウンロードが行われます。モデルはファイル名から自動で判別されます。
+
+| モデル | サイズ | 目安 |
+|--------|--------|------|
+| `ggml-tiny.bin` | 約 75MB | 日本語はかなり不安定 |
+| `ggml-base.bin` | 約 142MB | 軽量。要点は拾える |
+| `ggml-small.bin` | 約 466MB | 実用の下限 |
+| `ggml-large-v3-turbo.bin` | 約 1.6GB | 高精度・低速 |
 
 ---
 
@@ -174,14 +238,14 @@ curl -L -o ~/.cache/whisper.cpp/ggml-medium.bin \
 
 ```markdown
 ---
-date: 2026-08-03
+date: 2026-08-05
 time: 10:30
 duration: 45分
-source: 20260803 103000.m4a
+source: 20260805 103000.m4a
 tags: [会議メモ]
 ---
 
-# 2026-08-03 週次定例
+# 2026-08-05 週次定例
 
 ## 概要
 
@@ -224,6 +288,15 @@ tags: [会議メモ]
 tail -50 ~/.claude/logs/voice-memo-notes.log
 ```
 
+### 「音声認識が許可されていません」と出る
+
+1. `install.sh` を再実行して許可ダイアログで「OK」を選ぶ
+2. または システム設定 → プライバシーとセキュリティ → **音声認識** で
+   「ボイスメモ文字起こし」を有効にする
+
+**ツールを再ビルドすると許可がリセットされます**（ad-hoc 署名のため）。
+プラグイン更新後に失敗する場合はこれが原因です。
+
 ### 会議メモが作成されない
 
 ```bash
@@ -234,10 +307,15 @@ launchctl list | grep voice-memo
 ~/.claude/scripts/voice-memo-watch.sh
 ```
 
-- 「コマンドが見つかりません」→ `install.sh` を実行
-- 「whisper モデルが見つかりません」→ `install.sh` を実行
+- 「文字起こしツールが見つかりません」→ `install.sh` を実行
+- 「コマンドが見つかりません」（whisper エンジン）→ `install.sh` を実行
 - 「短すぎるためスキップ」→ `source.min_seconds` を下げる
 - ログに認証エラー → 上記「自動実行用トークンを設定」を実施
+
+### 文字起こしが途中で切れている
+
+`apple.chunk_seconds` が大きすぎる可能性があります。既定の 45 に戻してください。
+60 を超えると末尾しか返らない挙動が出ます。
 
 ### 監視フォルダを変えたのに反応しない
 
@@ -278,10 +356,12 @@ skills/voice-memo-notes/scripts/install.sh
 フルディスクアクセスが未許可です。「パターンB」の手順を確認してください。
 許可が難しい場合は `source.mode` を `export` に戻してください。
 
-### 文字起こしが遅い
+### 認識精度が低い
 
-- `whisper.threads` を Mac のコア数（`sysctl -n hw.perflevel0.physicalcpu`）に合わせる
-- より軽いモデルに変更する（上記「モデルを軽いものに変える」）
+- 固有名詞・専門用語が多い会議では `engine` を `whisper` に切り替える
+- マイクから遠い・複数人が同時に話す録音は、どのエンジンでも精度が落ちます
+- 生成された会議メモの要約には「（要確認）」が付く箇所があります。
+  数値・金額・日付・固有名詞は必ず原文か記憶と照合してください
 
 ---
 
@@ -293,3 +373,11 @@ rm ~/Library/LaunchAgents/com.user.voice-memo-notes.plist
 ```
 
 Skill としての手動実行（`/voice-memo-notes`）は引き続き使えます。
+
+文字起こしツール自体を消す場合:
+
+```bash
+rm -rf ~/.claude/state/VoiceMemoTranscriber.app
+```
+
+システム設定 → プライバシーとセキュリティ → 音声認識 からも項目を削除できます。
