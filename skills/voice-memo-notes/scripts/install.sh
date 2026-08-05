@@ -28,7 +28,15 @@ warn() { print -r -- "  ⚠️  $*" }
 ok()   { print -r -- "  ✅ $*" }
 die()  { print -r -- "  ❌ $*"; exit 1 }
 
+# VOICE_MEMO_ASSUME_YES=1 を渡すと、確認をすべて「はい」として進める
+# （Claude Code から実行する場合など、対話入力ができない環境向け）
+ASSUME_YES="${VOICE_MEMO_ASSUME_YES:-0}"
+
 ask_yes() {
+  if [[ "$ASSUME_YES" == "1" ]]; then
+    print -r -- "  $1 [y/N]: y（自動）"
+    return 0
+  fi
   local answer
   print -n -- "  $1 [y/N]: "
   read -r answer

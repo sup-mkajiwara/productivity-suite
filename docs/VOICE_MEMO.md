@@ -60,6 +60,12 @@ skills/voice-memo-notes/scripts/install.sh
 xcode-select --install   # 未導入の場合
 ```
 
+確認を省いて一気に進めたい場合（Claude Code から実行する場合など）:
+
+```bash
+VOICE_MEMO_ASSUME_YES=1 skills/voice-memo-notes/scripts/install.sh
+```
+
 ### 2. 音声認識の許可
 
 `apple` エンジンでは、初回に macOS の許可ダイアログが表示されるので **「OK」** を選びます。
