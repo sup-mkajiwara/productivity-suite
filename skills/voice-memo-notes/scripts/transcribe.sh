@@ -1,5 +1,9 @@
 #!/bin/zsh
-# ボイスメモの音声を whisper.cpp でローカル文字起こしする。
+# ボイスメモの音声をローカルで文字起こしする。
+#
+# エンジンは設定 engine で切り替える:
+#   apple   … macOS 標準の音声認識（追加インストール不要・既定）
+#   whisper … whisper.cpp（精度優先。brew で whisper-cpp と ffmpeg が必要）
 #
 # 使い方:
 #   transcribe.sh                # 設定の取り込み元フォルダから未処理の音声をすべて処理
@@ -57,6 +61,7 @@ def emit(name, value, path_like=False):
         value = os.path.expanduser(value)
     print(f"{name}={shlex.quote(value)}")
 
+emit("ENGINE",          get("engine", "apple"))
 emit("SOURCE_MODE",     get("source.mode", "export"))
 emit("WATCH_DIR",       get("source.watch_dir", "~/Documents/VoiceMemoInbox"), True)
 emit("VOICEMEMOS_DIR",  get("source.voicememos_dir",
@@ -65,13 +70,18 @@ emit("EXTENSIONS",      get("source.extensions", ["m4a", "mp3", "wav", "mp4"]))
 emit("MIN_SECONDS",     get("source.min_seconds", 0))
 emit("ARCHIVE_DIR",     get("processed.archive_dir", ""), True)
 emit("STATE_FILE",      get("processed.state_file", "~/.claude/state/voice-memo-processed.txt"), True)
+emit("WORK_DIR",        get("work_dir", "~/.claude/state/voice-memo-work"), True)
+emit("OUTPUT_DIR",      get("output.dir", "~/Documents/Obsidian Vault/会議メモ"), True)
+# apple エンジン
+emit("APPLE_APP",       get("apple.app_path", "~/.claude/state/VoiceMemoTranscriber.app"), True)
+emit("APPLE_LOCALE",    get("apple.locale", "ja-JP"))
+emit("APPLE_CHUNK",     get("apple.chunk_seconds", 45))
+# whisper エンジン
 emit("WHISPER_BIN",     get("whisper.bin", "whisper-cli"))
 emit("MODEL_PATH",      get("whisper.model", "~/.cache/whisper.cpp/ggml-large-v3-turbo.bin"), True)
 emit("LANGUAGE",        get("whisper.language", "ja"))
 emit("THREADS",         get("whisper.threads", 8))
 emit("TIMESTAMPS",      get("whisper.timestamps", False))
-emit("WORK_DIR",        get("whisper.work_dir", "~/.claude/state/voice-memo-work"), True)
-emit("OUTPUT_DIR",      get("output.dir", "~/Documents/Obsidian Vault/会議メモ"), True)
 PY
 then
   log "設定ファイルの読み込みに失敗しました（JSON 構文を確認してください）: $CONFIG_PATH"
@@ -82,18 +92,37 @@ source "$CFG_SH"
 rm -f "$CFG_SH"
 trap - EXIT
 
-# --- 依存コマンドの確認 -------------------------------------------------------
-for cmd in ffmpeg ffprobe "$WHISPER_BIN"; do
-  if ! command -v "$cmd" > /dev/null 2>&1; then
-    log "コマンドが見つかりません: $cmd  → scripts/install.sh を実行してください"
+# --- エンジンごとの前提確認 ---------------------------------------------------
+case "$ENGINE" in
+  apple)
+    # 追加インストールは不要。長さの取得は macOS 標準の afinfo を使う
+    if ! command -v afinfo > /dev/null 2>&1; then
+      log "afinfo が見つかりません（macOS 標準のコマンドです）"
+      exit 1
+    fi
+    if [[ ! -d "$APPLE_APP" ]]; then
+      log "文字起こしツールが見つかりません: $APPLE_APP"
+      log "→ scripts/install.sh または scripts/build-apple-transcriber.sh を実行してください"
+      exit 1
+    fi
+    ;;
+  whisper)
+    for cmd in ffmpeg "$WHISPER_BIN"; do
+      if ! command -v "$cmd" > /dev/null 2>&1; then
+        log "コマンドが見つかりません: $cmd  → scripts/install.sh を実行してください"
+        exit 1
+      fi
+    done
+    if [[ ! -f "$MODEL_PATH" ]]; then
+      log "whisper モデルが見つかりません: $MODEL_PATH  → scripts/install.sh を実行してください"
+      exit 1
+    fi
+    ;;
+  *)
+    log "engine が不正です: '$ENGINE'（apple または whisper）"
     exit 1
-  fi
-done
-
-if [[ ! -f "$MODEL_PATH" ]]; then
-  log "whisper モデルが見つかりません: $MODEL_PATH  → scripts/install.sh を実行してください"
-  exit 1
-fi
+    ;;
+esac
 
 # --- 取り込み元の決定 ---------------------------------------------------------
 case "$SOURCE_MODE" in
@@ -163,21 +192,57 @@ wait_until_stable() {
   return 1
 }
 
+# 音声の長さ（秒）。afinfo は macOS 標準なので追加インストール不要
 duration_seconds() {
   local d
-  d=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$1" 2>/dev/null) || return 1
+  d=$(afinfo "$1" 2>/dev/null | awk -F': ' '/estimated duration/ {print $2}' | awk '{print $1}')
+  [[ -z "$d" ]] && return 1
   printf '%.0f' "$d" 2>/dev/null || return 1
 }
 
-# 音声1件を文字起こしする。成功時は生成した .txt のパスを標準出力に返す
-transcribe_one() {
-  local src="$1"
-  local base="${${src:t}:r}"
-  # パス区切りや空白など扱いに困る文字だけを置換する（日本語のファイル名はそのまま残す）
-  local safe="${base//[\/\\:\*\?\"\<\>\|[:space:]]/_}"
-  local stamp
-  stamp=$(stat -f '%Sm' -t '%Y%m%d-%H%M%S' "$src" 2>/dev/null) || stamp="unknown"
-  local out_base="$WORK_DIR/${stamp}_${safe}"
+# macOS 標準の音声認識で文字起こしする。
+# 許可(TCC)がアプリバンドルに紐づくため、`open -n` で .app として起動する必要がある。
+# 結果は直接受け取れないので、出力ファイルと .done ファイル経由で待つ。
+apple_transcribe() {
+  local src="$1" out="$2" dur="$3"
+  local done_file="$out.done"
+  rm -f "$out" "$done_file"
+
+  if ! open -n -a "$APPLE_APP" --args "$src" "$out" "$APPLE_LOCALE" "$APPLE_CHUNK" 2>> "$LOG_FILE"; then
+    log "文字起こしツールを起動できませんでした: $APPLE_APP"
+    return 1
+  fi
+
+  # 待ち時間は録音の長さに比例させる（実測では音声長の 1/6 程度で完了する）
+  local limit=$(( 180 + dur ))
+  local waited=0
+  while (( waited < limit )); do
+    [[ -f "$done_file" ]] && break
+    sleep 2
+    (( waited += 2 ))
+  done
+
+  if [[ ! -f "$done_file" ]]; then
+    log "文字起こしが ${limit}秒 以内に終わりませんでした: ${src:t}"
+    return 1
+  fi
+
+  local code
+  code=$(cat "$done_file" 2>/dev/null)
+  rm -f "$done_file"
+
+  case "$code" in
+    0) return 0 ;;
+    3) log "音声認識が許可されていません。docs/VOICE_MEMO.md の「音声認識の許可」を確認してください" ;;
+    5) log "認識結果が空でした（無音の可能性）: ${src:t}" ;;
+    *) log "文字起こしに失敗しました（コード $code）: ${src:t}" ;;
+  esac
+  return 1
+}
+
+# whisper.cpp で文字起こしする
+whisper_transcribe() {
+  local src="$1" out_base="$2"
   local wav="${out_base}.16k.wav"
 
   # whisper.cpp は 16kHz モノラル PCM しか受け付けないため変換する
@@ -191,13 +256,31 @@ transcribe_one() {
   wargs=(-m "$MODEL_PATH" -f "$wav" -l "$LANGUAGE" -t "$THREADS" -otxt -of "$out_base" -np)
   [[ "$TIMESTAMPS" == "true" ]] && wargs+=(-osrt)
 
-  log "文字起こし中: ${src:t}"
   if ! "$WHISPER_BIN" "${wargs[@]}" >> "$LOG_FILE" 2>&1; then
     log "文字起こしに失敗しました: $src"
     rm -f "$wav"
     return 1
   fi
   rm -f "$wav"
+  return 0
+}
+
+# 音声1件を文字起こしする。成功時は生成した .txt のパスを標準出力に返す
+transcribe_one() {
+  local src="$1" dur="$2"
+  local base="${${src:t}:r}"
+  # パス区切りや空白など扱いに困る文字だけを置換する（日本語のファイル名はそのまま残す）
+  local safe="${base//[\/\\:\*\?\"\<\>\|[:space:]]/_}"
+  local stamp
+  stamp=$(stat -f '%Sm' -t '%Y%m%d-%H%M%S' "$src" 2>/dev/null) || stamp="unknown"
+  local out_base="$WORK_DIR/${stamp}_${safe}"
+
+  log "文字起こし中（$ENGINE）: ${src:t}"
+
+  case "$ENGINE" in
+    apple)   apple_transcribe "$src" "${out_base}.txt" "$dur" || return 1 ;;
+    whisper) whisper_transcribe "$src" "$out_base" || return 1 ;;
+  esac
 
   if [[ ! -s "${out_base}.txt" ]]; then
     log "文字起こし結果が空でした: $src"
@@ -207,7 +290,7 @@ transcribe_one() {
 }
 
 # --- メイン ------------------------------------------------------------------
-log "開始: mode=$SOURCE_MODE src=$SRC_DIR 候補=${#candidates}件"
+log "開始: engine=$ENGINE mode=$SOURCE_MODE src=$SRC_DIR 候補=${#candidates}件"
 
 processed=0
 skipped=0
@@ -238,7 +321,7 @@ for src in "${candidates[@]}"; do
   # 録音日時はファイルの更新時刻を使う（ボイスメモの録音日時とほぼ一致する）
   recorded_at=$(stat -f '%Sm' -t '%Y-%m-%d %H:%M' "$src" 2>/dev/null) || recorded_at=""
 
-  if ! txt=$(transcribe_one "$src"); then
+  if ! txt=$(transcribe_one "$src" "$dur"); then
     ((failed++))
     continue
   fi

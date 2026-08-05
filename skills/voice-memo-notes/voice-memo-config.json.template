@@ -1,4 +1,5 @@
 {
+  "engine": "apple",
   "source": {
     "mode": "export",
     "watch_dir": "~/Documents/VoiceMemoInbox",
@@ -10,13 +11,18 @@
     "archive_dir": "~/Documents/VoiceMemoInbox/_done",
     "state_file": "~/.claude/state/voice-memo-processed.txt"
   },
+  "work_dir": "~/.claude/state/voice-memo-work",
+  "apple": {
+    "app_path": "~/.claude/state/VoiceMemoTranscriber.app",
+    "locale": "ja-JP",
+    "chunk_seconds": 45
+  },
   "whisper": {
     "bin": "whisper-cli",
     "model": "~/.cache/whisper.cpp/ggml-large-v3-turbo.bin",
     "language": "ja",
     "threads": 8,
-    "timestamps": false,
-    "work_dir": "~/.claude/state/voice-memo-work"
+    "timestamps": false
   },
   "output": {
     "dir": "~/Documents/Obsidian Vault/会議メモ",
