@@ -137,6 +137,18 @@ esac
 
 # --- 3. フォルダとリンク ------------------------------------------------------
 step "3/5 フォルダを作成します"
+
+# launchd から起動されたプロセスは ~/Documents ~/Desktop ~/Downloads 配下に
+# アクセスできない（TCC 保護）。監視フォルダをそこに置くと自動処理が動かない。
+case "$WATCH_DIR" in
+  "$HOME"/Documents/*|"$HOME"/Desktop/*|"$HOME"/Downloads/*)
+    warn "監視フォルダが $WATCH_DIR です。"
+    warn "Documents / Desktop / Downloads 配下は launchd からアクセスできないため、"
+    warn "自動監視が動きません（手動実行なら動きます）。"
+    warn "設定の source.watch_dir を ~/VoiceMemoInbox のような場所に変えてください。"
+    ;;
+esac
+
 for d in "$WATCH_DIR" "$OUTPUT_DIR" "$ARCHIVE_DIR" "$WORK_DIR" "$HOME/.claude/state" "$HOME/.claude/logs"; do
   [[ -z "$d" ]] && continue
   if [[ -d "$d" ]]; then
@@ -148,12 +160,20 @@ done
 
 chmod +x "$SCRIPT_DIR"/*.sh 2>/dev/null
 
-# プラグインの実体パスはバージョンごとに変わるため、固定パスから呼べるようリンクを張る。
-# Skill 本体・launchd はこのリンク経由で呼び出す。
+# スクリプトを ~/.claude/scripts/ に「コピー」する。
+# 理由: launchd から起動されたプロセスは ~/Documents 配下を読めない(macOS の TCC 保護)。
+#       プラグインの実体は ~/Documents 配下に置かれることが多く、シンボリックリンクでは
+#       リンク先が読めず `can't open input file` で失敗する。
+#       またプラグインの実体パスはバージョンごとに変わるため、固定パスに置く意味もある。
+# 注意: プラグインを更新したら install.sh を再実行してコピーを更新すること。
 mkdir -p "$LINK_DIR"
-ln -sf "$SCRIPT_DIR/transcribe.sh"        "$LINK_DIR/voice-memo-transcribe.sh"
-ln -sf "$SCRIPT_DIR/voice-memo-watch.sh"  "$LINK_DIR/voice-memo-watch.sh"
-ok "コマンドのリンクを作成しました: $LINK_DIR/voice-memo-{transcribe,watch}.sh"
+# 以前のバージョンがシンボリックリンクを張っていた場合、cp がリンク先（リポジトリ内の
+# ファイル自身）に書き込もうとして失敗するため、先に消してからコピーする
+rm -f "$LINK_DIR/voice-memo-transcribe.sh" "$LINK_DIR/voice-memo-watch.sh"
+cp "$SCRIPT_DIR/transcribe.sh"        "$LINK_DIR/voice-memo-transcribe.sh" || die "コピーに失敗しました"
+cp "$SCRIPT_DIR/voice-memo-watch.sh"  "$LINK_DIR/voice-memo-watch.sh" || die "コピーに失敗しました"
+chmod +x "$LINK_DIR/voice-memo-transcribe.sh" "$LINK_DIR/voice-memo-watch.sh"
+ok "コマンドを配置しました: $LINK_DIR/voice-memo-{transcribe,watch}.sh"
 
 # --- 4. 音声認識の許可（apple エンジンのみ）-----------------------------------
 step "4/5 音声認識の許可を確認します"

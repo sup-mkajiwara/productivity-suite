@@ -2,13 +2,13 @@
   "engine": "apple",
   "source": {
     "mode": "export",
-    "watch_dir": "~/Documents/VoiceMemoInbox",
+    "watch_dir": "~/VoiceMemoInbox",
     "voicememos_dir": "~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings",
     "extensions": ["m4a", "mp3", "wav", "mp4"],
     "min_seconds": 30
   },
   "processed": {
-    "archive_dir": "~/Documents/VoiceMemoInbox/_done",
+    "archive_dir": "~/VoiceMemoInbox/_done",
     "state_file": "~/.claude/state/voice-memo-processed.txt"
   },
   "work_dir": "~/.claude/state/voice-memo-work",

@@ -36,8 +36,21 @@ trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT INT TERM
 
 log "===== START ====="
 
+# 文字起こしスクリプトの場所を決める。
+# install.sh は ~/.claude/scripts/ に voice-memo-transcribe.sh としてコピーする
+# （launchd から ~/Documents 配下を読めないため、リンクでは動かない）。
+if [[ -x "$SCRIPT_DIR/voice-memo-transcribe.sh" ]]; then
+  TRANSCRIBE="$SCRIPT_DIR/voice-memo-transcribe.sh"
+elif [[ -x "$SCRIPT_DIR/transcribe.sh" ]]; then
+  TRANSCRIBE="$SCRIPT_DIR/transcribe.sh"
+else
+  log "文字起こしスクリプトが見つかりません（install.sh を実行してください）"
+  log "===== END (異常終了) ====="
+  exit 1
+fi
+
 # 文字起こしを実行し、結果(TSV)を受け取る
-RESULTS="$("$SCRIPT_DIR/transcribe.sh" "$@")"
+RESULTS="$("$TRANSCRIBE" "$@")"
 STATUS=$?
 
 if (( STATUS != 0 )) && [[ -z "$RESULTS" ]]; then

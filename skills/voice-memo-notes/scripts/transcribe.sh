@@ -149,7 +149,11 @@ if [[ -n "$TARGET" ]]; then
   fi
 fi
 
-mkdir -p "$WORK_DIR" "$OUTPUT_DIR" "${STATE_FILE:h}"
+# 出力先(会議メモのフォルダ)はここでは作らない。
+# 出力先は Obsidian Vault など ~/Documents 配下に置かれることが多く、
+# launchd から起動された場合はアクセスした時点でプロセスが強制終了される（TCC 保護）。
+# 会議メモの書き込みは Claude 側が行うため、フォルダ作成もそちらに任せる。
+mkdir -p "$WORK_DIR" "${STATE_FILE:h}"
 touch "$STATE_FILE"
 
 if (( ${#candidates} == 0 )); then
@@ -230,6 +234,15 @@ apple_transcribe() {
   local code
   code=$(cat "$done_file" 2>/dev/null)
   rm -f "$done_file"
+
+  # ツール側の進捗ログを取り込む
+  # （`open` 経由で起動するため標準エラーを直接受け取れず、ファイル経由で渡している）
+  if [[ -f "$out.log" ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && log "  [文字起こし] $line"
+    done < "$out.log"
+    rm -f "$out.log"
+  fi
 
   case "$code" in
     0) return 0 ;;
