@@ -25,9 +25,19 @@ let donePath = outPath + ".done"
 let localeID = args.count >= 4 ? args[3] : "ja-JP"
 let chunkSeconds = args.count >= 5 ? (Double(args[4]) ?? 45.0) : 45.0
 
-// 進捗は標準エラーへ。呼び出し側がログに残す
+// 進捗ログ。`open -n` で起動されると標準エラーがどこにも届かないため、
+// 出力テキストの隣に .log として書き出す（呼び出し側がこれをログへ転記する）
+let notePath = outPath + ".log"
 func note(_ message: String) {
     FileHandle.standardError.write((message + "\n").data(using: .utf8)!)
+    let line = message + "\n"
+    if let fh = FileHandle(forWritingAtPath: notePath) {
+        fh.seekToEndOfFile()
+        fh.write(line.data(using: .utf8)!)
+        fh.closeFile()
+    } else {
+        try? line.write(toFile: notePath, atomically: true, encoding: .utf8)
+    }
 }
 
 func finish(_ text: String, _ code: Int32) -> Never {
