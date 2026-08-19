@@ -32,10 +32,11 @@ launchd による自動監視も可能です（`scripts/install.sh` で登録）
 |------|------|
 | `engine` | `apple`（macOS 標準の音声認識・既定）/ `whisper`（whisper.cpp） |
 | `source.mode` | `export`（書き出しフォルダを監視）/ `voicememos`（ボイスメモ本体を直接監視） |
-| `source.watch_dir` | `export` モードで監視するフォルダ |
+| `source.watch_dir` | `export` モードで監視するフォルダ（既定 `~/VoiceMemoInbox`） |
 | `source.voicememos_dir` | `voicememos` モードで読むフォルダ（フルディスクアクセスが必要） |
 | `source.min_seconds` | この秒数未満の録音は無視する |
-| `processed.archive_dir` | 処理済み音声の移動先（空なら移動しない） |
+| `processed.archive_dir` | 処理済み音声の移動先（空なら移動しない。`voicememos` モードでは移動しない） |
+| `apple.chunk_seconds` | 音声を分割する長さ（既定 45秒）。長い音声を一度に渡すと末尾しか返らないため分割している |
 | `output.dir` | **会議メモ Markdown の出力先** |
 | `output.filename_format` | ファイル名の形式。`{date}` `{time}` `{title}` が使える |
 | `output.include_full_text` | 文字起こし全文を md に含めるか |
@@ -43,6 +44,10 @@ launchd による自動監視も可能です（`scripts/install.sh` で登録）
 
 **フォルダは固定ではありません。** 設定ファイルの値が既定になり、
 Skill 実行時の引数や下記の明示指示で上書きできます。
+
+> 監視フォルダを `~/Documents` `~/Desktop` `~/Downloads` 配下に置かないこと。
+> launchd から起動されたプロセスはこれらにアクセスできず（macOS の TCC 保護）、
+> 自動処理が動かなくなる。
 
 ---
 
@@ -65,11 +70,16 @@ Skill 実行時の引数や下記の明示指示で上書きできます。
     `scripts/install.sh` の実行を案内して終了する（自分でインストールを試みない）。
   - 標準出力に `文字起こしtxt <TAB> 音声パス <TAB> 長さ(秒) <TAB> 録音日時` が1件ずつ出る。
   - 出力が空なら「新しい録音はありません」と報告して終了する（ファイルは作らない）。
-  - 文字起こしツールやモデルが無いというエラーが出た場合も、`scripts/install.sh` を案内して終了する。
-  - **「音声認識が許可されていません」**というエラーの場合は、
-    `scripts/install.sh` の再実行、またはシステム設定 → プライバシーとセキュリティ →
-    音声認識での許可を案内して終了する（自分で許可を回避しようとしない）。
   - 文字起こしは録音の長さに比例して時間がかかる（実測で音声長の約 1/6）。
+
+  **エラーが出た場合は下表の案内をして終了する。権限まわりを自分で回避しようとしないこと。**
+
+  | エラー | 案内すること |
+  |--------|--------------|
+  | 文字起こしツール／モデルが無い | `scripts/install.sh` の実行 |
+  | 「音声認識が許可されていません」 | `scripts/install.sh` の再実行、または システム設定 → プライバシーとセキュリティ → **音声認識** で「ボイスメモ文字起こし」を有効化 |
+  | 「取り込み元フォルダがありません」（`voicememos` モード時） | `~/.claude/state/VoiceMemoWatcher.app` に**フルディスクアクセス**が未付与。下記「取り込み元の切り替え」を案内 |
+  | 「取り込み元フォルダがありません」（`export` モード時） | 監視フォルダが無い。`scripts/install.sh` の実行を案内 |
 
 ### 2. 文字起こしテキストを読む
 
@@ -160,6 +170,10 @@ tags: [会議メモ]
 - 元の音声ファイルは削除しない（アーカイブへの移動は `transcribe.sh` が行う）。
 - 出力先フォルダが存在しない場合は作成する。
 - 文字起こしに失敗した音声は処理済みとして記録されないため、次回自動的に再試行される。
+- **文字起こしが極端に短い／大半が欠落している場合は、録音品質を疑って伝える。**
+  `apple` エンジンは低ビットレート録音に弱い（実測: 同じ音声で 非圧縮/AAC64kbps は 797文字、
+  AAC32kbps は 125文字）。設定 → ボイスメモ → オーディオ品質 を「ロスレス」にするか、
+  `engine` を `whisper` に切り替えるよう案内する。
 
 ---
 
@@ -178,5 +192,37 @@ skills/voice-memo-notes/scripts/install.sh
 
 `engine` を `whisper` にしている場合は、代わりに `whisper-cpp` / `ffmpeg` の導入と
 モデルのダウンロードが行われます。
+
+確認を省いて進めたい場合（Claude Code から実行する場合など）:
+
+```bash
+VOICE_MEMO_ASSUME_YES=1 skills/voice-memo-notes/scripts/install.sh
+```
+
+### 取り込み元の切り替え
+
+| モード | 操作 | 必要な許可 |
+|--------|------|-----------|
+| `export`（既定） | 録音を「共有 → ファイルに保存」で監視フォルダへ書き出す | 不要 |
+| `voicememos` | **書き出し不要。録音するだけ** | フルディスクアクセス |
+
+`voicememos` に切り替える手順（ユーザーに案内する内容）:
+
+1. 設定 `~/.claude/config/voice-memo-config.json` の `source.mode` を `"voicememos"` にする
+2. `scripts/install.sh` を再実行する
+   （監視用アプリ `~/.claude/state/VoiceMemoWatcher.app` がビルドされ、launchd が登録し直される）
+3. **システム設定 → プライバシーとセキュリティ → フルディスクアクセス** で
+   `~/.claude/state/VoiceMemoWatcher.app` を追加してオンにする
+   （ファイル選択画面で ⌘⇧G を押しパスを貼り付けると選べる）
+4. 確認: `open -n -a ~/.claude/state/VoiceMemoWatcher.app` の後、
+   `~/.claude/logs/voice-memo-notes.log` を見る
+
+> なぜ専用アプリを経由するのか: フルディスクアクセスの許可はアプリバンドルに紐づくため、
+> launchd がシェルスクリプトを直接起動しても許可を与えられない。専用アプリを経由すると
+> **そのアプリだけに権限を限定**でき、そこから起動された子プロセスが権限を引き継ぐ。
+> （`/bin/zsh` に許可を与える方法は、あらゆるシェルスクリプトが全ファイルにアクセス
+> できてしまうため採らない。ユーザーから希望された場合を除き提案しないこと。）
+
+`export` に戻す場合も、設定を戻して `install.sh` を再実行する。
 
 詳細は [docs/VOICE_MEMO.md](../../docs/VOICE_MEMO.md) を参照してください。
