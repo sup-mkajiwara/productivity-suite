@@ -160,7 +160,8 @@ if (( ${#candidates} == 0 )); then
   if [[ ! -d "$SRC_DIR" ]]; then
     log "取り込み元フォルダがありません: $SRC_DIR"
     if [[ "$SOURCE_MODE" == "voicememos" ]]; then
-      log "ボイスメモ本体を直接読むには、ターミナル/Claude Code に「フルディスクアクセス」を付与する必要があります"
+      log "ボイスメモ本体を直接読むには、~/.claude/state/VoiceMemoWatcher.app に"
+      log "「フルディスクアクセス」を付与する必要があります（システム設定 → プライバシーとセキュリティ）"
     fi
     exit 1
   fi

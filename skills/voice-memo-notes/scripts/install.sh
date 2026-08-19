@@ -17,6 +17,8 @@ CONFIG_DIR="$HOME/.claude/config"
 CONFIG_PATH="${VOICE_MEMO_CONFIG:-$CONFIG_DIR/voice-memo-config.json}"
 TEMPLATE_PATH="$SKILL_DIR/voice-memo-config.json.template"
 PLIST_TEMPLATE="$SKILL_DIR/templates/com.user.voice-memo-notes.plist.template"
+PLIST_TEMPLATE_VM="$SKILL_DIR/templates/com.user.voice-memo-notes.voicememos.plist.template"
+WATCHER_APP="$HOME/.claude/state/VoiceMemoWatcher.app"
 LABEL="com.user.voice-memo-notes"
 PLIST_PATH="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG_PATH="$HOME/.claude/logs/voice-memo-notes.launchd.log"
@@ -61,7 +63,7 @@ else
 fi
 
 # 設定を読み出す（jq 非依存。空白を含むパスに対応するためタブ区切りで受け取る）
-IFS=$'\t' read -r ENGINE SOURCE_MODE WATCH_DIR OUTPUT_DIR ARCHIVE_DIR WORK_DIR APPLE_APP MODEL_PATH <<< "$(python3 - "$CONFIG_PATH" <<'PY'
+IFS=$'\t' read -r ENGINE SOURCE_MODE WATCH_DIR VOICEMEMOS_DIR OUTPUT_DIR ARCHIVE_DIR WORK_DIR APPLE_APP MODEL_PATH <<< "$(python3 - "$CONFIG_PATH" <<'PY'
 import json, os, sys
 with open(sys.argv[1], encoding="utf-8") as f:
     cfg = json.load(f)
@@ -76,7 +78,9 @@ e = os.path.expanduser
 print("\t".join([
     get("engine", "apple"),
     get("source.mode", "export"),
-    e(get("source.watch_dir", "~/Documents/VoiceMemoInbox")),
+    e(get("source.watch_dir", "~/VoiceMemoInbox")),
+    e(get("source.voicememos_dir",
+          "~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings")),
     e(get("output.dir", "~/Documents/Obsidian Vault/会議メモ")),
     e(get("processed.archive_dir", "")),
     e(get("work_dir", "~/.claude/state/voice-memo-work")),
@@ -222,9 +226,31 @@ fi
 step "5/5 自動監視（launchd）を登録します"
 
 if [[ "$SOURCE_MODE" == "voicememos" ]]; then
-  warn "source.mode が 'voicememos' です。ボイスメモ本体を直接読むには"
-  warn "「システム設定 → プライバシーとセキュリティ → フルディスクアクセス」で"
-  warn "ターミナル（または Claude Code）を許可する必要があります。"
+  # ボイスメモ本体を直接読むにはフルディスクアクセスが要る。
+  # この許可はアプリバンドルに紐づくため、専用の監視アプリを経由して起動する
+  # （シェル全体に権限を与えずに済む）。
+  info "ボイスメモ本体を監視するため、監視用アプリをビルドします"
+  "$SCRIPT_DIR/build-app.sh" \
+    "$SKILL_DIR/src/VoiceMemoWatcher.swift" \
+    "$SKILL_DIR/templates/WatcherInfo.plist.template" \
+    "$WATCHER_APP" \
+    "VoiceMemoWatcher" || die "監視用アプリのビルドに失敗しました"
+
+  print -r -- ""
+  warn "【要操作】フルディスクアクセスの許可が必要です"
+  warn "  1. システム設定 → プライバシーとセキュリティ → フルディスクアクセス を開く"
+  warn "  2. 「+」を押して次のアプリを追加し、スイッチをオンにする"
+  warn "     $WATCHER_APP"
+  warn "  ※ Finder で ⌘⇧G を押し、上のパスを貼り付けると選べます"
+  warn "  この許可がないと、録音を読めず自動処理は動きません。"
+  print -r -- ""
+  if command -v open > /dev/null 2>&1; then
+    if ask_yes "設定画面を開きますか？"; then
+      open "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles" 2>/dev/null
+      # アプリを Finder で表示しておくとドラッグで追加しやすい
+      open -R "$WATCHER_APP" 2>/dev/null
+    fi
+  fi
 fi
 
 if [[ ! -f "$HOME/.claude/voice-memo-token" && ! -f "$HOME/.claude/morning-token" ]]; then
@@ -239,18 +265,31 @@ if [[ -f "$PLIST_PATH" ]]; then
   info "監視フォルダを変えた場合は、いったん削除して再登録してください:"
   info "  launchctl bootout gui/\$(id -u)/$LABEL && rm $PLIST_PATH"
 else
-  if ask_yes "監視フォルダ「$WATCH_DIR」を自動監視するよう登録しますか？"; then
-    [[ -f "$PLIST_TEMPLATE" ]] || die "plist テンプレートが見つかりません: $PLIST_TEMPLATE"
+  # 監視対象は取り込み元モードによって変わる
+  if [[ "$SOURCE_MODE" == "voicememos" ]]; then
+    TARGET_DIR="$VOICEMEMOS_DIR"
+    USE_TEMPLATE="$PLIST_TEMPLATE_VM"
+    REPLACE_KEY="__APP_PATH__"
+    REPLACE_VAL="$WATCHER_APP"
+  else
+    TARGET_DIR="$WATCH_DIR"
+    USE_TEMPLATE="$PLIST_TEMPLATE"
+    REPLACE_KEY="__SCRIPT_PATH__"
+    REPLACE_VAL="$LINK_DIR/voice-memo-watch.sh"
+  fi
+
+  if ask_yes "「$TARGET_DIR」を自動監視するよう登録しますか？"; then
+    [[ -f "$USE_TEMPLATE" ]] || die "plist テンプレートが見つかりません: $USE_TEMPLATE"
     mkdir -p "${PLIST_PATH:h}"
-    python3 - "$PLIST_TEMPLATE" "$PLIST_PATH" "$LABEL" \
-      "$LINK_DIR/voice-memo-watch.sh" "$WATCH_DIR" "$LOG_PATH" <<'PY'
+    python3 - "$USE_TEMPLATE" "$PLIST_PATH" "$LABEL" \
+      "$REPLACE_KEY" "$REPLACE_VAL" "$TARGET_DIR" "$LOG_PATH" <<'PY'
 import sys
-tpl, out, label, script, watch, logpath = sys.argv[1:7]
+tpl, out, label, key, value, watch, logpath = sys.argv[1:8]
 with open(tpl, encoding="utf-8") as f:
     body = f.read()
-for key, value in (("__LABEL__", label), ("__SCRIPT_PATH__", script),
-                   ("__WATCH_DIR__", watch), ("__LOG_PATH__", logpath)):
-    body = body.replace(key, value)
+for k, v in (("__LABEL__", label), (key, value),
+             ("__WATCH_DIR__", watch), ("__LOG_PATH__", logpath)):
+    body = body.replace(k, v)
 with open(out, "w", encoding="utf-8") as f:
     f.write(body)
 PY
